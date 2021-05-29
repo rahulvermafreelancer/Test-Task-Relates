@@ -1,0 +1,12 @@
+{
+  "name": "test-task",
+  "version": "1.0.0",
+  "description": "A test task provided by Relatas on node js",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "author": "Rahul Verma",
+  "license": "ISC"
+}
