@@ -1,24 +1,73 @@
-const http = require("http");
+const express = require("express");
+const app = express();
 const fs = require("fs");
+const LogFileSize = require("./LogFile");
+const handleData = require("./CallBackResponseHandler");
 
-const hostname = "127.0.0.1";
-const port = 8080;
+let logSize = 256;
+let size = 0;
+let indexValueCurrent = 0;
+let count = 0;
+let descriptFile;
+let fileSize = LogFileSize("example.txt");
 
-const server = http.createServer((req, res) => {
-    res.statusCode = 200;
-    res.setHeader("Content-Type", "text/plain");
+fs.open("example.txt", "r", (error, fd) => {
+    if (error) console.log(error);
+    console.log(fd);
+    descriptFile = fd;
+});
 
-    let file = fs.readFileSync("example.txt", "utf8");
-    let arr = file.split(/\r?\n/);
-    arr.forEach((line, idx) => {
-        if (line.includes("2020-01-01")) {
-            // console.log(idx + 1 + ":" + line);
-            res.write(idx + 1 + ":" + line + "\n");
+app.get("/", async(req, res) => {
+    const { lines, index } = req.query;
+    if (typeof lines !== "undefined") {
+        size = logSize * +lines;
+    } else {
+        size = logSize;
+    }
+
+    if (size > fileSize) {
+        return res.json(handleData(false, "Size limit exceeded", size, null));
+    }
+
+    let buffer = new Buffer.alloc(size);
+
+    if (index === "forward" && count !== 0) {
+        indexValueCurrent += size;
+        if (indexValueCurrent > fileSize) {
+            return res.json(
+                handleData(false, "Size limit exceeded. Go backwards.", null, null)
+            );
         }
+    }
+    if (index === "backward") {
+        indexValueCurrent -= size;
+        if (indexValueCurrent <= 0) {
+            indexValueCurrent = 0;
+        }
+    }
+
+    const data = await new Promise((resolve, reject) => {
+        fs.read(
+            descriptFile,
+            buffer,
+            0,
+            buffer.length,
+            indexValueCurrent,
+            (err, bytes) => {
+                if (err) reject(err);
+                if (bytes > 0) {
+                    resolve(buffer.slice(0, bytes).toString());
+                }
+                console.log(bytes + " bytes read");
+            }
+        );
     });
-    res.end();
+
+    count += 1;
+    console.log("Number of Call Count: ", count);
+    return res.json(handleData(true, null, size, data));
 });
 
-server.listen(port, hostname, () => {
-    console.log(`Server is started at port ${port}`);
-});
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => console.log(`Server listening on ${PORT}`));
